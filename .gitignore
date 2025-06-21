@@ -1,0 +1,13 @@
+/Debug/
+/Release/
+/build/
+/output/
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+*.d
+*.log
+*.launch
+*.user
