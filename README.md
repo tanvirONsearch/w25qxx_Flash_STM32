@@ -28,8 +28,8 @@ Designed for STM32CubeIDE and tested on STM32F407VET6 using a W25Q16JV chip.
 
 ## 🛠️ MCU Platform
 
-- **Microcontroller:** STM32F407VET6
-- **Board:** STM32F4xx-M development board
+- **Microcontroller:** STM32F407xx 
+- **Board:** STM32F4xx-M development board (STM32F407VET6 chip)
 - **Interface:** SPI1 (customizable)
 - **Flash chip:** W25Q16JV (32-bit addressing, 4KB sector size)
 
