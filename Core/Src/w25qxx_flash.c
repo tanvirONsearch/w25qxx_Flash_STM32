@@ -10,9 +10,10 @@
 #include <string.h>
 #include <w25qxx_flash.h>
 #include "flash_addrs.h"
+#include<stdbool.h>
 //caching buffer
 static uint32_t flash_buffer[FLASH_ADR_MAX];  // holds all values read from flash
-
+static bool is_updated = false;
 
 //w25qxx drivers handle
 static w25qxx_handle_t w25q;
@@ -261,8 +262,20 @@ uint8_t flash_init(void){
 	uint8_t a = w25qxx_platform_init(&w25q);
 	if(!a){
 		flash_load_cache();
+		is_updated = false;
 	}
 	return a;
+}
+
+/**
+ * @brief     resets update flag
+ * @return    status code
+ *            - 0 success
+ *            - 1 read failed
+ */
+uint8_t reset_update_flag(void){
+	is_updated = false;
+	return is_updated;
 }
 
 
@@ -275,26 +288,17 @@ uint8_t flash_init(void){
  */
 uint8_t flash_load_cache(void)
 {
-    for (uint32_t i = 0; i < FLASH_ADR_MAX; i++)
-    {
-        uint8_t buf[4];
-        uint32_t addr = i * 4;
+   if (w25qxx_read(&w25q, Flash_INITIAL_ADDRESS, flash_buffer, FLASH_ADR_MAX * ADDRS_SPACE_SLOT_SIZE) != 0) // cahnge FLASH_SLOT_SIZE to user_data_size
+        return 1;
 
-        if (w25qxx_read(&w25q, addr, buf, 4) != 0)
-            return 1;
-
-        flash_buffer[i] = ((uint32_t)buf[0] << 24) |
-                          ((uint32_t)buf[1] << 16) |
-                          ((uint32_t)buf[2] << 8)  |
-                          ((uint32_t)buf[3]);
-    }
     return 0;
 }
+
 
 //reads in local buffer one slot
 uint8_t flash_read(uint16_t addr, uint32_t *data)
 {
-    if (addr == 0 || addr >= FLASH_ADR_MAX)
+    if (addr >= FLASH_ADR_MAX)
         return 1;
 
     *data = flash_buffer[addr];
@@ -305,13 +309,34 @@ uint8_t flash_read(uint16_t addr, uint32_t *data)
 //reads multiple slots
 uint8_t flash_read_burst(uint16_t start_addr, uint32_t *data, uint16_t count)
 {
-    if (start_addr == 0 || (start_addr + count) > FLASH_ADR_MAX)
+    if ((start_addr + count) > FLASH_ADR_MAX)
         return 1;
 
     for (uint16_t i = 0; i < count; i++)
     {
         data[i] = flash_buffer[start_addr + i];
     }
+    return 0;
+}
+
+/**
+ * @brief     Read a 32-bit float from flash (via cache)
+ * @param[in] slot   The logical flash slot (must be > 0)
+ * @param[out] value Pointer to store the float result
+ * @return    status code
+ *            - 0 success
+ *            - 1 invalid slot or NULL pointer
+ */
+uint8_t flash_read_float(uint16_t addr, float *value)
+{
+    if (addr >= FLASH_ADR_MAX || value == NULL)
+        return 1;
+
+    uint32_t raw;
+    if (flash_read(addr, &raw) != 0)
+        return 1;
+
+    memcpy(value, &raw, sizeof(float));
     return 0;
 }
 
@@ -326,10 +351,11 @@ uint8_t flash_read_burst(uint16_t start_addr, uint32_t *data, uint16_t count)
  */
 uint8_t flash_write(uint16_t addr, uint32_t value)
 {
-    if (addr == 0 || addr >= FLASH_ADR_MAX)
+    if (addr >= FLASH_ADR_MAX)
         return 1;
 
     flash_buffer[addr] = value;
+    is_updated = true;
     return 0;
 }
 
@@ -345,7 +371,7 @@ uint8_t flash_write(uint16_t addr, uint32_t value)
  */
 uint8_t flash_write_burst(uint16_t start_addr, uint32_t *data, uint16_t count)
 {
-    if (start_addr == 0 || (start_addr + count) > FLASH_ADR_MAX)
+    if ((start_addr + count) > FLASH_ADR_MAX)
         return 1;
 
     for (uint16_t i = 0; i < count; i++)
@@ -354,7 +380,23 @@ uint8_t flash_write_burst(uint16_t start_addr, uint32_t *data, uint16_t count)
     }
     return 0;
 }
+/**
+ * @brief     Write a 32-bit float to flash (via cache)
+ * @param[in] slot   The logical flash slot (must be > 0)
+ * @param[in] value  Float value to write
+ * @return    status code
+ *            - 0 success
+ *            - 1 invalid slot
+ */
+uint8_t flash_write_float(uint16_t addr, float value)
+{
+    if (addr >= FLASH_ADR_MAX)
+        return 1;
 
+    uint32_t raw;
+    memcpy(&raw, &value, sizeof(float));
+    return flash_write(addr, raw);
+}
 
 /**
  * @brief     Write all RAM-buffered slots to flash memory
@@ -364,24 +406,31 @@ uint8_t flash_write_burst(uint16_t start_addr, uint32_t *data, uint16_t count)
  */
 uint8_t flash_flush(void)
 {
-    for (uint32_t i = 0; i < FLASH_ADR_MAX; i++)
-    {
-        uint32_t val = flash_buffer[i];
-        uint8_t buf[4] = {
-            (val >> 24) & 0xFF,
-            (val >> 16) & 0xFF,
-            (val >> 8) & 0xFF,
-            val & 0xFF
-        };
-
-        uint32_t addr = i * 4;
-
-        if (w25qxx_write(&w25q, addr, buf, 4) != 0)
-            return 1;
-    }
+    if (w25qxx_write(&w25q, Flash_INITIAL_ADDRESS, flash_buffer,FLASH_ADR_MAX * ADDRS_SPACE_SLOT_SIZE) != 0)
+        return 1;
 
     return 0;
 }
+
+/**
+ * @brief     Conditionally flush the flash buffer if updated
+ * @return    status code
+ *            - 0 success (flushed or nothing to do)
+ *            - 1 flush failed
+ */
+uint8_t flash_flush_if_updated(void)
+{
+    if (is_updated)
+    {
+        is_updated = 0;  // reset update flag
+        return flash_flush();  // flush buffer to flash
+    }
+    else
+    {
+        return 0;  // nothing to flush, but not an error
+    }
+}
+
 
 /**
  * @brief     Clean up the flash by resetting all slots to 0xFFFFFFFF
@@ -392,18 +441,12 @@ uint8_t flash_flush(void)
  */
 uint8_t flash_cleanup(void)
 {
-    // Fill RAM buffer with 0xFFFFFFFF (erased state)
-    for (uint32_t i = 1; i < FLASH_ADR_MAX; i++) //skips reserved slot
-    {
-        flash_buffer[i] = 0xFFFFFFFF;
-    }
+    // Set user slots to 0xFFFFFFFF starting from slot 0
+    memset(&flash_buffer[0], 0xFF, (FLASH_ADR_MAX) * ADDRS_SPACE_SLOT_SIZE);
 
-    // Flush the updated buffer to flash memory
-    return flash_flush();  // reuse existing flush logic
+    // Flush updated RAM buffer to flash
+    return flash_flush();
 }
-
-
-
 
 ///**
 // * @brief     erase the 4k sector

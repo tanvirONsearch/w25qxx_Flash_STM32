@@ -1,4 +1,4 @@
-/* USER CODE BEGIN Header */
+                                       /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file           : main.c
@@ -104,10 +104,10 @@ int main(void)
 
       // --- Step 1: Write to RAM cache (do NOT read before write) ---
 
-      flash_write(FLASH_ADDR_DEVICE_ID, 0x3214342);
+      flash_write(FLASH_ADDR_DEVICE_ID, 0x32ABC42);
       flash_write(FLASH_ADDR_LOG_COUNT, 1);
-      flash_write(FLASH_ADDR_FLAGS, 0xCAFEBABE);
-
+      flash_write(FLASH_ADDR_FLAGS, 0xCAF123E);
+      flash_write_float(kp, 3.1234);
       // --- Step 2: Flush cache to flash ---
       if (flash_flush() == 0)
       {
@@ -124,6 +124,7 @@ int main(void)
       //flash_cleanup();
 
       uint32_t val = 0;
+      float valf = 0.f;
 
       flash_read(FLASH_ADDR_DEVICE_ID, &val);
       w25qxx_interface_debug_print("Device ID    : 0x%08lX\r\n", val);
@@ -133,6 +134,9 @@ int main(void)
 
       flash_read(FLASH_ADDR_FLAGS, &val);
       w25qxx_interface_debug_print("Flags        : 0x%08lX\r\n", val);
+
+      flash_read_float(kp,&valf);
+      w25qxx_interface_debug_print("kp        : %f\r\n", valf);
 
       w25qxx_interface_debug_print("[FLASH APP DONE]\r\n");
 

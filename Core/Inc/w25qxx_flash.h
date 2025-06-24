@@ -8,6 +8,9 @@
 extern "C" {
 #endif
 
+#define Flash_INITIAL_ADDRESS 0
+#define ADDRS_SPACE_SLOT_SIZE 4
+
 void cs_low(void);
 void cs_high(void);
 
@@ -30,10 +33,12 @@ uint8_t flash_load_cache(void);
 uint8_t flash_flush(void); // to set total cache to memory
 
 uint8_t flash_read(uint16_t addr, uint32_t *data); // no length 32bit  // addrs is serial address
+uint8_t flash_read_float(uint16_t addr, float *value);
 uint8_t flash_read_burst(uint16_t start_addr, uint32_t *data, uint16_t count);
 
 uint8_t flash_write(uint16_t addr, uint32_t value);
 uint8_t flash_write_burst(uint16_t start_addr, uint32_t *data, uint16_t count);
+uint8_t flash_write_float(uint16_t addr, float value);
 uint8_t flash_cleanup(void);
 
 //uint8_t flash_erase_sector(uint32_t addr);
